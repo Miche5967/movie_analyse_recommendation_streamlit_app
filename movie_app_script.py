@@ -40,19 +40,32 @@ def load_and_process_title_akas_and_basics():
     - 'genres': Genres du film
     '''
 
+    # Définition des "chunks" pour optimiser la lecture
+    chunksize = 600000
+    
     # Définition des colonnes à conserver lors de la lecture du fichier csv title.akas
     columns_to_include_akas = ['titleId', 'title', 'region']
+
+    # Initialisation d'un DataFrame pour la lecture du fichier title.akas
+    df_title_akas_fr_trim = pd.DataFrame()
     
-    # Lecture du fichier title.akas.tsv.gz
-    df_title_akas_pyarrow_trim_dtype = pd.read_csv(
-        r"https://datasets.imdbws.com/title.akas.tsv.gz", usecols = columns_to_include_akas,
-        dtype = {'titleId': 'string', 'title': 'string', 'region': 'string'}, delimiter = '\t', engine = "pyarrow")
+    # Lecture du fichier title.akas.tsv.gz avec des chunks
+    df_chunks_akas = pd.read_csv(
+    	r"https://datasets.imdbws.com/title.akas.tsv.gz", usecols = columns_to_include_akas,
+    	dtype = {'titleId': 'string', 'title': 'string', 'region': 'string'}, delimiter = '\t',
+    	chunksize = chunksize)
     
-    # Filtre sur la colonne "region" pour ne garder que la valeur "FR"
-    df_title_akas_fr = df_title_akas_pyarrow_trim_dtype.loc[df_title_akas_pyarrow_trim_dtype["region"] == "FR"]
-    
-    # Suppression de la colonne "region"
-    df_title_akas_fr_trim = df_title_akas_fr.drop(columns = "region")
+    for chunk in df_chunks_akas:
+        # Filtrer et traiter chaque morceau
+        
+        # Filtre sur la colonne "region" pour ne garder que la valeur "FR"
+        chunk = chunk[chunk["region"] == "FR"]
+
+        # Suppression de la colonne "region"
+        chunk.drop(columns = "region", inplace = True)
+
+        # Concaténer le morceau traité au DataFrame final
+        df_title_akas_fr_trim = pd.concat([df_title_akas_fr_trim, chunk])
     
     # Définition des colonnes à conserver lors de la lecture du fichier csv title.basics
     columns_to_include_basics = ['tconst', 'titleType', 'startYear', 'runtimeMinutes', 'genres']
@@ -60,9 +73,7 @@ def load_and_process_title_akas_and_basics():
     # Initialisation d'un DataFrame pour la lecture du fichier title.basics
     df_title_basics_recent_years = pd.DataFrame()
     
-    # Définition des "chunks" pour optimiser la lecture
-    chunksize = 500000
-    # Lecture du fichier title.basics.tsv.gz par morceau
+    # Lecture du fichier title.basics.tsv.gz avec des chunks
     df_chunks = pd.read_csv(
         r"https://datasets.imdbws.com/title.basics.tsv.gz", usecols = columns_to_include_basics,
         dtype = {'tconst': 'string', 'titleType': 'string', 'startYear': 'string',
@@ -216,7 +227,7 @@ def load_and_process_title_ratings():
 def keep_on_movie_analyse_page():
 	st.session_state.radio = 'Analyses de films'
 
-with st.spinner('Merci de patienter pendant le chargement des données. Cela peut prendre 2 à 5 minutes...'):
+with st.spinner('Merci de patienter pendant le chargement des données. Cela peut prendre plusieurs minutes...'):
 	df_movie_fr_recent_years = load_and_process_title_akas_and_basics()
 	df_movie_fr_recent_years_trim, df_genres = process_genres(df_movie_fr_recent_years)
 	df_title_ratings = load_and_process_title_ratings()
@@ -392,8 +403,8 @@ if st.sidebar.radio('Choix de la page', ('Analyses de films', 'Recommandation de
 		# Affichage dans Streamlit
 		st.plotly_chart(fig_3, use_container_width = False)
 
-		df_sample = df_group_years_genres_to_plot.sample(20)
-		st.dataframe(df_sample)
+		#df_sample = df_group_years_genres_to_plot.sample(20)
+		#st.dataframe(df_sample)
 	
 	with tab_actors:
 		st.subheader("Actresses & actors")
