@@ -94,6 +94,12 @@ def load_and_process_title_akas_and_basics():
         
         # Filtre sur la colonne "titleType" pour ne garder les titres de type "movie"
         chunk = chunk[chunk["titleType"] == "movie"]
+
+        # Suppression des lignes où il n'y a pas de genre ("\N")
+        chunk = chunk[chunk["runtimeMinutes"] != "\\N"]
+        
+        # Changement de type de données de la colonne "runtimeMinutes", passage en type "integer"
+        chunk["runtimeMinutes"] = chunk["runtimeMinutes"].astype("int32")
         
         # Concaténer le morceau traité au DataFrame final
         df_title_basics_recent_years = pd.concat([df_title_basics_recent_years, chunk])
@@ -183,7 +189,11 @@ def process_genres(df):
     df_genres.sort_values(by = "Occurences", ascending = False, inplace = True)
     df_genres.reset_index(inplace = True)
     df_genres.rename(columns = {"index" : "Genre"}, inplace = True)
+    df_genres["Selected"] = False
     
+    # Changement de type de données de la colonne "Genre", passage en type "string"
+    df_genres["Genre"] = df_genres["Genre"].astype("string")
+
     # Liste des genres que l'on veut supprimer
     list_genres_to_delete = ['Adult','News', 'Reality-TV', 'Talk-Show', 'Short', 'Game-Show']
 
@@ -317,15 +327,20 @@ if st.sidebar.radio('Choix de la page', ('Analyses de films', 'Recommandation de
 
 		# Groupement des données par genre et année et aggréagation
 		# Création d'un nouveau DataFrame pour ne conserver que les colonnes qui nous intéressent
-		df_years_genres_ratings = df_movie_title_fr_recent_years_exploded_ratings[["startYear", "genres", "averageRating", "numVotes"]]
+		df_years_genres_ratings = df_movie_title_fr_recent_years_exploded_ratings[
+			["startYear", "genres", "runtimeMinutes", "averageRating", "numVotes"]]
 
 		# Nouvelle colonne "weighted_rating" pour le calcul des moyennes pondérées
 		df_years_genres_ratings["weighted_rating"] = df_years_genres_ratings.averageRating * df_years_genres_ratings.numVotes
 
+		# Nouvelle colonne "nbMovies" pour le calcul du nombre de films par catégorie
+		df_years_genres_ratings["nbMovies"] = 1
+
 		# Création d'un nouveau DataFrame df_group_years_genres en groupant les données du précédent par année et par genre
 		# avec comme aggrégation les somme des nombres de votes et des valeurs de la nouvelle colonne weighted_rating"
 		df_group_years_genres = df_years_genres_ratings.groupby(
-		    by = ["startYear", "genres"]).agg({"numVotes" : "sum", "weighted_rating" : "sum"})
+		    by = ["startYear", "genres"]).agg(
+		    {"numVotes" : "sum", "weighted_rating" : "sum", "nbMovies": "sum", "runtimeMinutes" : "mean"})
 
 		# Division de la colonne "weighted_rating"  par le nombre de vote pour calculer la moyenne pondérée
 		df_group_years_genres.weighted_rating = df_group_years_genres.weighted_rating / df_group_years_genres.numVotes
@@ -375,20 +390,9 @@ if st.sidebar.radio('Choix de la page', ('Analyses de films', 'Recommandation de
 
 		
 		# Evolution du nombre de films sortis par an et par genre
-		# Création d'un nouveau DataFrame df_years_genres_movies avec uniquement les colonnes concernées
-		# ("startYear" et "genres"), auxquelles on ajout une colnne "nbMovies".
-		df_years_genres_movies = df_movie_title_fr_recent_years_exploded_trim[["startYear", "genres"]]
-		df_years_genres_movies["nbMovies"] = 1
-
-		# Nouveau DataFrame créé par groupement des films par année et par genre et somme du nombre de films
-		df_years_genres_group = df_years_genres_movies.groupby(by = ["startYear", "genres"]).sum()
-
-		# Reset des index du DataFrame df_years_genres_group
-		df_years_genres_group.reset_index(inplace = True)
-
 		# Line plot du nombre de films produits par an et par genre
 		st.markdown("### Courbe du nombre de films produits par an et par genre")
-		fig_3 = px.line(data_frame = df_years_genres_group, x = "startYear", y = "nbMovies",
+		fig_3 = px.line(data_frame = df_group_years_genres_to_plot, x = "startYear", y = "nbMovies",
 			color = "genres", color_discrete_sequence = px.colors.qualitative.Light24, markers = True,
 			labels = {"startYear": "Year", "nbMovies": "Number of movies", "genres": "Movie genres"},
 			title = "Number of movies produced per year and genre", width = 1000, height = 600)
@@ -402,6 +406,23 @@ if st.sidebar.radio('Choix de la page', ('Analyses de films', 'Recommandation de
 
 		# Affichage dans Streamlit
 		st.plotly_chart(fig_3, use_container_width = False)
+
+		# Line plot de la durée moyenne des films par an et par genre
+		st.markdown("### Courbe de la durée moyenne des films par an et par genre")
+		fig_4 = px.line(data_frame = df_group_years_genres_to_plot, x = "startYear", y = "runtimeMinutes",
+			color = "genres", color_discrete_sequence = px.colors.qualitative.Light24, markers = True,
+			labels = {"startYear": "Year", "nbMovies": "Number of movies", "genres": "Movie genres"},
+			title = "Average duration of movies per year and genre", width = 1000, height = 600)
+
+		fig_4.update_layout(title = {'y': 0.9, 'x': 0.5, 'xanchor': 'center', 'yanchor': 'top',
+			'font' : dict(size = 24)}, plot_bgcolor = 'white')
+		fig_4.update_xaxes(ticks = 'outside', showline = True, linecolor = 'black', linewidth = 2,
+			gridcolor = 'lightgrey', griddash = 'dash', range = [1979, 2023])
+		fig_4.update_yaxes(ticks = 'outside', showline = True, linecolor = 'black', linewidth = 2,
+			gridcolor = 'lightgrey', griddash = 'dash')
+
+		# Affichage dans Streamlit
+		st.plotly_chart(fig_4, use_container_width = False)
 
 		#df_sample = df_group_years_genres_to_plot.sample(20)
 		#st.dataframe(df_sample)
