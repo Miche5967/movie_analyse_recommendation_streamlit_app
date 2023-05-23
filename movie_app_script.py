@@ -12,7 +12,7 @@ st.set_page_config(layout="wide")
 st.title('Movie analyse and recommendation')
 
 # Affichage (temporaire) du "session_state"
-"st.session.state (*juste pour voir, à supprimer ensuite*) :", st.session_state
+#"st.session.state (*juste pour voir, à supprimer ensuite*) :", st.session_state
 
 @st.cache_data
 def load_and_process_title_akas_and_basics():
@@ -322,25 +322,75 @@ if st.sidebar.radio('Choix de la page', ('Analyses de films', 'Recommandation de
 		# Création d'un DataFrame pour le tracé, en ré-initialisant les index
 		df_group_years_genres_to_plot = df_group_years_genres.reset_index()
 
-		# Tracé
-		fig = px.scatter(data_frame = df_group_years_genres_to_plot, x = "startYear", y = "weighted_rating",
+		# Tracés
+
+		# Bubble plot de la moyenne pondérée (y) par an (x) et par genre (catégorie),
+		# avec le nombre de votes pour la taille des bulles
+		st.markdown("### Bubble plot de la moyenne pondérée (y) par an (x) et par genre (catégorie)")
+		fig_1 = px.scatter(data_frame = df_group_years_genres_to_plot, x = "startYear", y = "weighted_rating",
 		                 size = "numVotes", color = "genres", color_discrete_sequence = px.colors.qualitative.Light24,
-		                 width = 1000,
+		                 width = 1000, height = 600,
 		                 labels = {"startYear": "Year", "weighted_rating": "Weighted rating", "genres": "Movie genre",
 		                          "numVotes": "Number of votes"},
-		                 title = "Ratings and number of votes of movies produced per year and genre", height = 700)
+		                 title = "Ratings and number of votes of movies produced per year and genre")
 
-		fig.update_layout(title = {'y': 0.9, 'x': 0.5, 'xanchor': 'center', 'yanchor': 'top',
-		                           'font' : dict(size = 24)},
-		                 plot_bgcolor = 'white')
-
-		fig.update_xaxes(ticks = 'outside', showline = True, linecolor = 'black', linewidth = 2,
-		                 gridcolor = 'lightgrey', griddash = 'dash',
-		                 range=[1979, 2023])
-		fig.update_yaxes(ticks = 'outside', showline = True, linecolor = 'black', linewidth = 2,
+		fig_1.update_layout(title = {'y': 0.9, 'x': 0.5, 'xanchor': 'center', 'yanchor': 'top',
+		                           'font' : dict(size = 24)}, plot_bgcolor = 'white')
+		fig_1.update_xaxes(ticks = 'outside', showline = True, linecolor = 'black', linewidth = 2,
+		                 gridcolor = 'lightgrey', griddash = 'dash', range=[1979, 2023])
+		fig_1.update_yaxes(ticks = 'outside', showline = True, linecolor = 'black', linewidth = 2,
 		                 gridcolor = 'lightgrey', griddash = 'dash')
 
-		st.plotly_chart(fig, use_container_width = False)
+		# Affichage dans Streamlit
+		st.plotly_chart(fig_1, use_container_width = False)
+
+		# Line plot de la moyenne pondérée (y) par an (x) et par genre (catégorie)
+		st.markdown("### Courbe de la moyenne pondérée (y) par an (x) et par genre (catégorie)")
+		fig_2 = px.line(data_frame = df_group_years_genres_to_plot, x = "startYear", y = "weighted_rating",
+			color = "genres", color_discrete_sequence = px.colors.qualitative.Light24, markers = True,
+			width = 1000, line_shape='spline',
+			labels = {"startYear": "Year", "weighted_rating": "Weighted rating", "genres": "Movie genre"},
+			title = "Ratings of movies produced per year and genre")
+
+		fig_2.update_layout(title = {'y': 0.9, 'x': 0.5, 'xanchor': 'center', 'yanchor': 'top',
+			'font' : dict(size = 24)}, plot_bgcolor = 'white')
+		fig_2.update_xaxes(ticks = 'outside', showline = True, linecolor = 'black', linewidth = 2,
+			gridcolor = 'lightgrey', griddash = 'dash', range=[1979, 2023])
+		fig_2.update_yaxes(ticks = 'outside', showline = True, linecolor = 'black', linewidth = 2,
+			gridcolor = 'lightgrey', griddash = 'dash')
+
+		# Affichage dans Streamlit
+		st.plotly_chart(fig_2, use_container_width = False)
+
+		
+		# Evolution du nombre de films sortis par an et par genre
+		# Création d'un nouveau DataFrame df_years_genres_movies avec uniquement les colonnes concernées
+		# ("startYear" et "genres"), auxquelles on ajout une colnne "nbMovies".
+		df_years_genres_movies = df_movie_title_fr_recent_years_exploded_trim[["startYear", "genres"]]
+		df_years_genres_movies["nbMovies"] = 1
+
+		# Nouveau DataFrame créé par groupement des films par année et par genre et somme du nombre de films
+		df_years_genres_group = df_years_genres_movies.groupby(by = ["startYear", "genres"]).sum()
+
+		# Reset des index du DataFrame df_years_genres_group
+		df_years_genres_group.reset_index(inplace = True)
+
+		# Line plot du nombre de films produits par an et par genre
+		st.markdown("### Courbe du nombre de films produits par an et par genre")
+		fig_3 = px.line(data_frame = df_years_genres_group, x = "startYear", y = "nbMovies",
+			color = "genres", color_discrete_sequence = px.colors.qualitative.Light24, markers = True,
+			labels = {"startYear": "Year", "nbMovies": "Number of movies", "genres": "Movie genres"},
+			title = "Number of movies produced per year and genre", width = 1000, height = 600)
+
+		fig_3.update_layout(title = {'y': 0.9, 'x': 0.5, 'xanchor': 'center', 'yanchor': 'top',
+			'font' : dict(size = 24)}, plot_bgcolor = 'white')
+		fig_3.update_xaxes(ticks = 'outside', showline = True, linecolor = 'black', linewidth = 2,
+			gridcolor = 'lightgrey', griddash = 'dash', range = [1979, 2023])
+		fig_3.update_yaxes(ticks = 'outside', showline = True, linecolor = 'black', linewidth = 2,
+			gridcolor = 'lightgrey', griddash = 'dash', range = [0, 1100])
+
+		# Affichage dans Streamlit
+		st.plotly_chart(fig_3, use_container_width = False)
 
 		df_sample = df_group_years_genres_to_plot.sample(20)
 		st.dataframe(df_sample)
