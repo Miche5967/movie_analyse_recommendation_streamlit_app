@@ -256,6 +256,9 @@ if st.sidebar.radio('Choix de la page', ('Analyses de films', 'Recommandation de
 		# Définition de 5 colonnes
 		col_1, col_2, col_3, col_4, col_5 = st.columns(5)
 
+		# Ajout des checkbox avec les noms des genres dans les différentes colonnes
+		# La valeur de chaque checkbox est mise dans la colonne "Selected" de df_genres
+		# Les premiers genres sont préselectionnés avec value = "True"
 		with col_1:
 			chk_Drama = st.checkbox("Drame", key = "chk_drama", value = True, on_change = keep_on_movie_analyse_page)
 			df_genres.loc[df_genres["Genre"] == "Drama", "Selected"] = chk_Drama
@@ -350,12 +353,19 @@ if st.sidebar.radio('Choix de la page', ('Analyses de films', 'Recommandation de
 
 		# Tracés
 
+		# Dictionnaire des couleurs par genre
+		dict_genres_colors_map = {'Drama' : 'plum', 'Comedy' : 'dodgerblue', 'Documentary' : 'green', 'Action' : 'gold',
+			'Thriller' : 'darkred', 'Crime' : 'red', 'Romance' : 'deeppink', 'Adventure' : 'lightgreen', 'Horror' : 'indigo',
+			'Mystery' : 'lightgrey', 'Biography' : 'lavender', 'Fantasy' : 'lightskyblue', 'Family' : 'yellow', 'Sci-Fi' : 'silver',
+			'Animation' : 'salmon', 'History' : 'slategrey', 'Music' : 'darkorchid', 'War' : 'darkgreen', 'Adult' : 'pink',
+			'Sport' : 'lawngreen', 'Musical' : 'orchid', 'Western' : 'navajowhite'}
+
 		# Bubble plot de la moyenne pondérée (y) par an (x) et par genre (catégorie),
 		# avec le nombre de votes pour la taille des bulles
 		st.markdown("### Bubble plot de la moyenne pondérée (y) par an (x) et par genre (catégorie)")
 		fig_1 = px.scatter(data_frame = df_group_years_genres_to_plot, x = "startYear", y = "weighted_rating",
 		                 size = "numVotes", color = "genres", color_discrete_sequence = px.colors.qualitative.Light24,
-		                 width = 1000, height = 600,
+		                 width = 1000, height = 600, color_discrete_map = dict_genres_colors_map,
 		                 labels = {"startYear": "Year", "weighted_rating": "Weighted rating", "genres": "Movie genre",
 		                          "numVotes": "Number of votes"},
 		                 title = "Ratings and number of votes of movies produced per year and genre")
@@ -374,7 +384,7 @@ if st.sidebar.radio('Choix de la page', ('Analyses de films', 'Recommandation de
 		st.markdown("### Courbe de la moyenne pondérée (y) par an (x) et par genre (catégorie)")
 		fig_2 = px.line(data_frame = df_group_years_genres_to_plot, x = "startYear", y = "weighted_rating",
 			color = "genres", color_discrete_sequence = px.colors.qualitative.Light24, markers = True,
-			width = 1000, line_shape='spline',
+			width = 1000, line_shape='spline', color_discrete_map = dict_genres_colors_map,
 			labels = {"startYear": "Year", "weighted_rating": "Weighted rating", "genres": "Movie genre"},
 			title = "Ratings of movies produced per year and genre")
 
@@ -395,7 +405,8 @@ if st.sidebar.radio('Choix de la page', ('Analyses de films', 'Recommandation de
 		fig_3 = px.line(data_frame = df_group_years_genres_to_plot, x = "startYear", y = "nbMovies",
 			color = "genres", color_discrete_sequence = px.colors.qualitative.Light24, markers = True,
 			labels = {"startYear": "Year", "nbMovies": "Number of movies", "genres": "Movie genres"},
-			title = "Number of movies produced per year and genre", width = 1000, height = 600)
+			title = "Number of movies produced per year and genre", width = 1000, height = 600,
+			color_discrete_map = dict_genres_colors_map)
 
 		fig_3.update_layout(title = {'y': 0.9, 'x': 0.5, 'xanchor': 'center', 'yanchor': 'top',
 			'font' : dict(size = 24)}, plot_bgcolor = 'white')
@@ -412,7 +423,8 @@ if st.sidebar.radio('Choix de la page', ('Analyses de films', 'Recommandation de
 		fig_4 = px.line(data_frame = df_group_years_genres_to_plot, x = "startYear", y = "runtimeMinutes",
 			color = "genres", color_discrete_sequence = px.colors.qualitative.Light24, markers = True,
 			labels = {"startYear": "Year", "nbMovies": "Number of movies", "genres": "Movie genres"},
-			title = "Average duration of movies per year and genre", width = 1000, height = 600)
+			title = "Average duration of movies per year and genre", width = 1000, height = 600,
+			color_discrete_map = dict_genres_colors_map)
 
 		fig_4.update_layout(title = {'y': 0.9, 'x': 0.5, 'xanchor': 'center', 'yanchor': 'top',
 			'font' : dict(size = 24)}, plot_bgcolor = 'white')
