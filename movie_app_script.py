@@ -236,8 +236,8 @@ def load_and_process_title_ratings():
 
 @st.cache_data
 def load_and_process_title_principals_and_name_basics():
-    # Définition des "chunks"
-    chunksize = 1000000
+    # Définition des "chunks" pour optimiser la lecture
+    chunksize = 600000
     
     # Définition des colonnes à conserver lors de la lecture du fichier csv title.akas
     columns_to_include_principals = ['tconst', 'nconst', 'category']
