@@ -14,6 +14,11 @@ st.title('Movie analyse and recommendation')
 # Affichage (temporaire) du "session_state"
 #"st.session.state (*juste pour voir, à supprimer ensuite*) :", st.session_state
 
+# Type de chargement des données
+# Données déjà "traitées", chargées depuis github : True
+# Sinon, depuis IMDb ou en local : False
+data_loading_type_from_github = True
+
 @st.cache_data
 def load_and_process_title_akas_and_basics():
     '''
@@ -50,8 +55,10 @@ def load_and_process_title_akas_and_basics():
     df_title_akas_fr_trim = pd.DataFrame()
     
     # Lecture du fichier title.akas.tsv.gz avec des chunks
+    #path_akas = r"https://datasets.imdbws.com/title.akas.tsv.gz"
+    path_akas = r"C:/Données/d_ Wild Code School/d_ Projet 02/datasets/title_akas.tsv"
     df_chunks_akas = pd.read_csv(
-    	r"https://datasets.imdbws.com/title.akas.tsv.gz", usecols = columns_to_include_akas,
+    	path_akas, usecols = columns_to_include_akas,
     	dtype = {'titleId': 'string', 'title': 'string', 'region': 'string'}, delimiter = '\t',
     	chunksize = chunksize)
     
@@ -74,8 +81,10 @@ def load_and_process_title_akas_and_basics():
     df_title_basics_recent_years = pd.DataFrame()
     
     # Lecture du fichier title.basics.tsv.gz avec des chunks
+    #path_basics = r"https://datasets.imdbws.com/title.basics.tsv.gz"
+    path_basics = r"C:/Données/d_ Wild Code School/d_ Projet 02/datasets/title_basics.tsv"
     df_chunks = pd.read_csv(
-        r"https://datasets.imdbws.com/title.basics.tsv.gz", usecols = columns_to_include_basics,
+        path_basics, usecols = columns_to_include_basics,
         dtype = {'tconst': 'string', 'titleType': 'string', 'startYear': 'string',
                  'runtimeMinutes': 'string', 'genres': 'string'},
         delimiter = '\t', low_memory = False, chunksize = chunksize)
@@ -236,8 +245,8 @@ def load_and_process_title_ratings():
 
 @st.cache_data
 def load_and_process_title_principals_and_name_basics():
-    # Définition des "chunks" pour optimiser la lecture
-    chunksize = 300000
+    # Définition des "chunks"
+    chunksize = 600000
     
     # Définition des colonnes à conserver lors de la lecture du fichier csv title.akas
     columns_to_include_principals = ['tconst', 'nconst', 'category']
@@ -245,9 +254,11 @@ def load_and_process_title_principals_and_name_basics():
     # Initialisation d'un DataFrame pour la lecture du fichier title.principals
     df_title_principals = pd.DataFrame()
     
-    # Lecture du fichier csv title.akas.tsv avec des chunks
+    # Lecture du fichier csv title.principals.tsv avec des chunks
+    #path_principals = r"https://datasets.imdbws.com/title.principals.tsv.gz"
+    path_principals = r"C:/Données/d_ Wild Code School/d_ Projet 02/datasets/title_principals.tsv"
     df_chunks_principals = pd.read_csv(
-        r"https://datasets.imdbws.com/title.principals.tsv.gz", usecols = columns_to_include_principals,
+        path_principals, usecols = columns_to_include_principals,
         dtype = {'tconst': 'string', 'nconst': 'string', 'category': 'category'}, delimiter = '\t',
         chunksize = chunksize)
     
@@ -258,13 +269,20 @@ def load_and_process_title_principals_and_name_basics():
         #chunk.drop(['ordering','job','characters'], axis = 1, inplace = True)
         
         # Suppression des lignes qui ne contiennent pas "actor" ou "actress" dans la colonne "categoy"
-        chunk = chunk.drop(chunk[chunk['category'].isin(['actor','actress']) == False].index)
+        chunk = chunk.drop(chunk[chunk['category'].isin(['actor','actress', 'director']) == False].index)
         
         # Suppression des doublons
         chunk.drop_duplicates(inplace = True)
         
         # Concaténer le morceau traité au DataFrame final
         df_title_principals = pd.concat([df_title_principals, chunk])
+        
+        # DataFrame avec uniquement les acteurs/actrisses
+        df_title_principals_actors = df_title_principals[
+            df_title_principals["category"].isin(["actor" , "actress"])]
+        
+        # DataFrame avec uniquement les réalisateurs
+        df_title_principals_directors = df_title_principals[ df_title_principals["category"] == "director"]
     
     # Définition des colonnes à conserver lors de la lecture du fichier csv title.akas
     columns_to_include_name = ['nconst', 'primaryName']
@@ -272,10 +290,12 @@ def load_and_process_title_principals_and_name_basics():
     # Initialisation d'un DataFrame pour la lecture du fichier title.principals
     df_name_basics = pd.DataFrame()
     
-    # Lecture du fichier csv title.akas.tsv avec des chunks
+    # Lecture du fichier csv name.basics.tsv avec des chunks
+    #path_principals = r"https://datasets.imdbws.com/name.basics.tsv.gz"
+    path_principals = r"C:/Données/d_ Wild Code School/d_ Projet 02/datasets/name_basics.tsv"
     df_chunks_name = pd.read_csv(
-        r"https://datasets.imdbws.com/name.basics.tsv.gz", usecols = columns_to_include_name,
-        dtype = {'nconst': 'string', 'primaryName': 'string'},delimiter = '\t', chunksize = chunksize)
+        path_principals, usecols = columns_to_include_name,
+        dtype = {'nconst': 'string', 'primaryName': 'string'}, delimiter = '\t', chunksize = chunksize)
     
     for chunk in df_chunks_name:
         # Filtrer et traiter chaque morceau
@@ -283,26 +303,74 @@ def load_and_process_title_principals_and_name_basics():
         # Concaténer le morceau traité au DataFrame final
         df_name_basics = pd.concat([df_name_basics, chunk])
     
-    # Fusion des deux DataFrame
-    df_actors_movies = pd.merge(left = df_title_principals, right = df_name_basics,
+    # Fusion des deux DataFrame (actors)
+    df_actors_movies = pd.merge(left = df_title_principals_actors, right = df_name_basics,
+                                how = 'inner', left_on = "nconst", right_on = "nconst")
+    
+    # Fusion des deux DataFrame (directors)
+    df_directors_movies = pd.merge(left = df_title_principals_directors, right = df_name_basics,
                                 how = 'inner', left_on = "nconst", right_on = "nconst")
     
     # Fusion avec le DataFrame des title_ratings pour avoir les votes et notes des films des acteurs/trices
     df_actors_movies_ratings = pd.merge(left = df_actors_movies, right = df_title_ratings, how = "inner",
                                         left_on = "tconst", right_on = "tconst")
     
-    return df_actors_movies_ratings
+    # Fusion avec le DataFrame des title_ratings pour avoir les votes et notes des films des réalisateurs
+    df_directors_movies_ratings = pd.merge(left = df_directors_movies, right = df_title_ratings, how = "inner",
+                                        left_on = "tconst", right_on = "tconst")
+    
+    return df_actors_movies_ratings, df_directors_movies_ratings
+
+@st.cache_data
+def load_movies_fr_recent_years_from_github():
+	with st.spinner('Import de du fichier movies_fr_recent_years.csv'):
+		df_movie_fr_recent_years = pd.read_csv(
+			"https://raw.githubusercontent.com/Miche5967/Projet_WCS_02_Systeme_recommandation_films/main/movies_fr_recent_years.csv")
+	return df_movie_fr_recent_years
+
+@st.cache_data
+def load_movies_fr_recent_years_trim_from_github():
+	with st.spinner('Import de du fichier movies_fr_recent_years_trim.csv'):
+		df_movie_fr_recent_years_trim = pd.read_csv(
+			"https://raw.githubusercontent.com/Miche5967/Projet_WCS_02_Systeme_recommandation_films/main/movies_fr_recent_years_trim.csv")
+	return df_movie_fr_recent_years_trim
+
+@st.cache_data
+def load_genres_from_github():
+	df_genres = pd.read_csv("https://raw.githubusercontent.com/Miche5967/Projet_WCS_02_Systeme_recommandation_films/main/genres.csv")
+	return df_genres
+
+@st.cache_data
+def load_movies_fr_from_1980_actors_from_github():
+	with st.spinner('Import de du fichier movies_fr_from_1980_actors_ratings.csv'):
+		df_movie_in_FR_from_1980_actor_rating = pd.read_csv(
+			"https://raw.githubusercontent.com/Miche5967/Projet_WCS_02_Systeme_recommandation_films/main/movies_fr_from_1980_actors_ratings.csv")
+	return df_movie_in_FR_from_1980_actor_rating
+
+@st.cache_data
+def load_movies_fr_from_1980_directors_from_github():
+	with st.spinner('Import de du fichier movies_fr_from_1980_directors_ratings.csv'):
+		df_movies_Fr_from_1980_director_rating = pd.read_csv(
+			"https://raw.githubusercontent.com/Miche5967/Projet_WCS_02_Systeme_recommandation_films/main/movies_fr_from_1980_directors_ratings.csv")
+	return df_movies_Fr_from_1980_director_rating
+
 
 def keep_on_movie_analyse_page():
 	st.session_state.radio = 'Analyses de films'
 
 with st.spinner('Merci de patienter pendant le chargement des données. Cela peut prendre plusieurs minutes...'):
-	df_movie_fr_recent_years = load_and_process_title_akas_and_basics()
-	df_movie_fr_recent_years_trim, df_genres = process_genres(df_movie_fr_recent_years)
-	df_title_ratings = load_and_process_title_ratings()
-	df_actors_movies_ratings = load_and_process_title_principals_and_name_basics()
+	if data_loading_type_from_github:
+		df_movie_fr_recent_years = load_movies_fr_recent_years_from_github()
+		df_movie_fr_recent_years_trim, df_genres = process_genres(df_movie_fr_recent_years)
+		df_title_ratings = load_and_process_title_ratings()
+		df_movie_in_FR_from_1980_actor_rating = load_movies_fr_from_1980_actors_from_github()
+		df_movies_Fr_from_1980_director_rating = load_movies_fr_from_1980_directors_from_github()
+	else:
+		df_movie_fr_recent_years = load_and_process_title_akas_and_basics()
+		df_movie_fr_recent_years_trim, df_genres = process_genres(df_movie_fr_recent_years)
+		df_title_ratings = load_and_process_title_ratings()
+		df_actors_movies_ratings, df_directors_movies_ratings = load_and_process_title_principals_and_name_basics()
 
-#if st.sidebar.button('Movie analyses', key = "btn_analyse"):
 if st.sidebar.radio('Choix de la page', ('Analyses de films', 'Recommandation de films'), key = "radio") == 'Analyses de films':
 	st.header("Movie analyses")
 
@@ -331,11 +399,11 @@ if st.sidebar.radio('Choix de la page', ('Analyses de films', 'Recommandation de
 		with col_2:
 			chk_Crime = st.checkbox("Policier", key = "chk_crime", value = True, on_change = keep_on_movie_analyse_page)
 			df_genres.loc[df_genres["Genre"] == "Crime", "Selected"] = chk_Crime
-			chk_Romance = st.checkbox("Romance", key = "chk_romance", value = True, on_change = keep_on_movie_analyse_page)
+			chk_Romance = st.checkbox("Romance", key = "chk_romance", on_change = keep_on_movie_analyse_page)
 			df_genres.loc[df_genres["Genre"] == "Romance", "Selected"] = chk_Romance
-			chk_Adventure = st.checkbox("Aventure", key = "chk_adventure", value = True, on_change = keep_on_movie_analyse_page)
+			chk_Adventure = st.checkbox("Aventure", key = "chk_adventure", on_change = keep_on_movie_analyse_page)
 			df_genres.loc[df_genres["Genre"] == "Adventure", "Selected"] = chk_Adventure
-			chk_Horror = st.checkbox("Horreur", key = "chk_horror", value = True, on_change = keep_on_movie_analyse_page)
+			chk_Horror = st.checkbox("Horreur", key = "chk_horror", on_change = keep_on_movie_analyse_page)
 			df_genres.loc[df_genres["Genre"] == "Horror", "Selected"] = chk_Horror
 		with col_3:
 			chk_Mystery = st.checkbox("Mystery", key = "chk_mystery", on_change = keep_on_movie_analyse_page)
@@ -363,18 +431,11 @@ if st.sidebar.radio('Choix de la page', ('Analyses de films', 'Recommandation de
 			chk_Western = st.checkbox("Western", key = "chk_western", on_change = keep_on_movie_analyse_page)
 			df_genres.loc[df_genres["Genre"] == "Western", "Selected"] = chk_Western
 
-		#st.dataframe(df_genres.head(10))
-		
 		# Création d'un DataFrame avec la colonne "genres" éclatée
 		df_movie_title_fr_recent_years_exploded = df_movie_fr_recent_years_trim.explode(column = "genres")
 		df_movie_title_fr_recent_years_exploded["genres"] = df_movie_title_fr_recent_years_exploded["genres"].astype("string")
 
-		# Définition d'une liste de genres à conserver
-		list_genres_to_keep = ['Drama', 'Comedy', 'Action', 'Thriller', 'Crime',
-			'Romance', 'Adventure', 'Horror', 'Mystery', 'Fantasy']
-		
 		# Création d'un DataFrame des genres ne contenant que les genres à conserver
-		#df_genres_trim = df_genres.loc[df_genres.Genre.isin(list_genres_to_keep)]
 		df_genres_trim = df_genres.loc[df_genres.Selected]
 
 		# Création d'un DataFrame avec uniquement les genres à conserver définis plus haut
@@ -411,7 +472,8 @@ if st.sidebar.radio('Choix de la page', ('Analyses de films', 'Recommandation de
 		# Création d'un DataFrame pour le tracé, en ré-initialisant les index
 		df_group_years_genres_to_plot = df_group_years_genres.reset_index()
 
-		# Tracés
+		
+		### Tracés ###
 
 		# Dictionnaire des couleurs par genre
 		dict_genres_colors_map = {'Drama' : 'plum', 'Comedy' : 'dodgerblue', 'Documentary' : 'green', 'Action' : 'gold',
@@ -420,33 +482,13 @@ if st.sidebar.radio('Choix de la page', ('Analyses de films', 'Recommandation de
 			'Animation' : 'salmon', 'History' : 'slategrey', 'Music' : 'darkorchid', 'War' : 'darkgreen', 'Adult' : 'pink',
 			'Sport' : 'lawngreen', 'Musical' : 'orchid', 'Western' : 'navajowhite'}
 
-		# Bubble plot de la moyenne pondérée (y) par an (x) et par genre (catégorie),
-		# avec le nombre de votes pour la taille des bulles
-		st.markdown("### Bubble plot de la moyenne pondérée (y) par an (x) et par genre (catégorie)")
-		fig_1 = px.scatter(data_frame = df_group_years_genres_to_plot, x = "startYear", y = "weighted_rating",
-		                 size = "numVotes", color = "genres", color_discrete_sequence = px.colors.qualitative.Light24,
-		                 width = 1000, height = 600, color_discrete_map = dict_genres_colors_map,
-		                 labels = {"startYear": "Year", "weighted_rating": "Weighted rating", "genres": "Movie genre",
-		                          "numVotes": "Number of votes"},
-		                 title = "Ratings and number of votes of movies produced per year and genre")
-
-		fig_1.update_layout(title = {'y': 0.9, 'x': 0.5, 'xanchor': 'center', 'yanchor': 'top',
-		                           'font' : dict(size = 24)}, plot_bgcolor = 'white')
-		fig_1.update_xaxes(ticks = 'outside', showline = True, linecolor = 'black', linewidth = 2,
-		                 gridcolor = 'lightgrey', griddash = 'dash', range=[1979, 2023])
-		fig_1.update_yaxes(ticks = 'outside', showline = True, linecolor = 'black', linewidth = 2,
-		                 gridcolor = 'lightgrey', griddash = 'dash')
-
-		# Affichage dans Streamlit
-		st.plotly_chart(fig_1, use_container_width = False)
-
 		# Line plot de la moyenne pondérée (y) par an (x) et par genre (catégorie)
 		st.markdown("### Courbe de la moyenne pondérée (y) par an (x) et par genre (catégorie)")
 		fig_2 = px.line(data_frame = df_group_years_genres_to_plot, x = "startYear", y = "weighted_rating",
 			color = "genres", color_discrete_sequence = px.colors.qualitative.Light24, markers = True,
-			width = 1000, line_shape='spline', color_discrete_map = dict_genres_colors_map,
-			labels = {"startYear": "Year", "weighted_rating": "Weighted rating", "genres": "Movie genre"},
-			title = "Ratings of movies produced per year and genre")
+			width = 1000, height = 600, line_shape ='spline', color_discrete_map = dict_genres_colors_map,
+			labels = {"startYear": "Année", "weighted_rating": "Moyenne pondérée", "genres": "Genre"},
+			title = "Note moyenne pondérée des films par an et par genre")
 
 		fig_2.update_layout(title = {'y': 0.9, 'x': 0.5, 'xanchor': 'center', 'yanchor': 'top',
 			'font' : dict(size = 24)}, plot_bgcolor = 'white')
@@ -458,14 +500,31 @@ if st.sidebar.radio('Choix de la page', ('Analyses de films', 'Recommandation de
 		# Affichage dans Streamlit
 		st.plotly_chart(fig_2, use_container_width = False)
 
-		
+		# Line plot du nombre de votes (y) par an (x) et par genre (catégorie)
+		st.markdown("### Courbe de la moyenne pondérée (y) par an (x) et par genre (catégorie)")
+		fig_1 = px.line(data_frame = df_group_years_genres_to_plot, x = "startYear", y = "numVotes",
+			color = "genres", color_discrete_sequence = px.colors.qualitative.Light24, markers = True,
+			width = 1000, height = 600, line_shape ='spline', color_discrete_map = dict_genres_colors_map,
+			labels = {"startYear": "Année", "numVotes": "Nombre de votes", "genres": "Genre"},
+			title = "Nombre de votes moyen des films par an et par genre")
+
+		fig_1.update_layout(title = {'y': 0.9, 'x': 0.5, 'xanchor': 'center', 'yanchor': 'top',
+			'font' : dict(size = 24)}, plot_bgcolor = 'white')
+		fig_1.update_xaxes(ticks = 'outside', showline = True, linecolor = 'black', linewidth = 2,
+			gridcolor = 'lightgrey', griddash = 'dash', range=[1979, 2023])
+		fig_1.update_yaxes(ticks = 'outside', showline = True, linecolor = 'black', linewidth = 2,
+			gridcolor = 'lightgrey', griddash = 'dash')
+
+		# Affichage dans Streamlit
+		st.plotly_chart(fig_1, use_container_width = False)
+
 		# Evolution du nombre de films sortis par an et par genre
 		# Line plot du nombre de films produits par an et par genre
 		st.markdown("### Courbe du nombre de films produits par an et par genre")
 		fig_3 = px.line(data_frame = df_group_years_genres_to_plot, x = "startYear", y = "nbMovies",
 			color = "genres", color_discrete_sequence = px.colors.qualitative.Light24, markers = True,
-			labels = {"startYear": "Year", "nbMovies": "Number of movies", "genres": "Movie genres"},
-			title = "Number of movies produced per year and genre", width = 1000, height = 600,
+			labels = {"startYear": "Année", "nbMovies": "Nombre de films", "genres": "Genre"},
+			title = "Nombre de films produits par an et par genre", width = 1000, height = 600,
 			color_discrete_map = dict_genres_colors_map)
 
 		fig_3.update_layout(title = {'y': 0.9, 'x': 0.5, 'xanchor': 'center', 'yanchor': 'top',
@@ -482,8 +541,8 @@ if st.sidebar.radio('Choix de la page', ('Analyses de films', 'Recommandation de
 		st.markdown("### Courbe de la durée moyenne des films par an et par genre")
 		fig_4 = px.line(data_frame = df_group_years_genres_to_plot, x = "startYear", y = "runtimeMinutes",
 			color = "genres", color_discrete_sequence = px.colors.qualitative.Light24, markers = True,
-			labels = {"startYear": "Year", "nbMovies": "Number of movies", "genres": "Movie genres"},
-			title = "Average duration of movies per year and genre", width = 1000, height = 600,
+			labels = {"startYear": "Année", "nbMovies": "Nombre de films", "genres": "Genre"},
+			title = "Durée moyenne des films par an et par genre", width = 1000, height = 600,
 			color_discrete_map = dict_genres_colors_map)
 
 		fig_4.update_layout(title = {'y': 0.9, 'x': 0.5, 'xanchor': 'center', 'yanchor': 'top',
@@ -499,22 +558,25 @@ if st.sidebar.radio('Choix de la page', ('Analyses de films', 'Recommandation de
 		#df_sample = df_group_years_genres_to_plot.sample(20)
 		#st.dataframe(df_sample)
 	
+
 	with tab_actors:
 		st.subheader("Actresses & actors")
 
 		# Fusion du DataFrame des notes des films des acteurs avec le DataFrame des films
 
 		# Création d'un nouveau DataFrame par fusion des DataFrame des notes des films des acteurs
-		# avec le DataFrame des films
-		df_movie_in_FR_from_1980_actor_rating = pd.merge(left = df_movie_fr_recent_years_trim,
-			right =df_actors_movies_ratings, how = "inner", left_on = "tconst", right_on = "tconst")
+		# avec le DataFrame des films,
+		# SI les données n'ont pas été directement chargées depuis github
+		if not data_loading_type_from_github:
+			df_movie_in_FR_from_1980_actor_rating = pd.merge(left = df_movie_fr_recent_years_trim,
+				right =df_actors_movies_ratings, how = "inner", left_on = "tconst", right_on = "tconst")
 
-		# Ajout d'une colonne "weighted_rating" pour le calcul de la moyenne pondérée des notes des films
-		df_movie_in_FR_from_1980_actor_rating['weighted_rating'] = \
-			df_movie_in_FR_from_1980_actor_rating['averageRating'] * df_movie_in_FR_from_1980_actor_rating['numVotes']
-
-		# Ajout d'une colonne "nb_movies" pour le calcul du nombre de films par acteur
-		df_movie_in_FR_from_1980_actor_rating['nb_movies'] = 1
+			# Ajout d'une colonne "weighted_rating" pour le calcul de la moyenne pondérée des notes des films
+			df_movie_in_FR_from_1980_actor_rating['weighted_rating'] = \
+				df_movie_in_FR_from_1980_actor_rating['averageRating'] * df_movie_in_FR_from_1980_actor_rating['numVotes']
+			
+			# Ajout d'une colonne "nb_movies" pour le calcul du nombre de films par acteur
+			df_movie_in_FR_from_1980_actor_rating['nb_movies'] = 1
 
 		# Moyenne pondérée des notes des films des acteurs
 
@@ -535,25 +597,30 @@ if st.sidebar.radio('Choix de la page', ('Analyses de films', 'Recommandation de
 
 		# Top des x acteurs ayant le plus de votes, classés par note moyenne
 
-		def top_actors(nb_top_actors):
+		def top_actors(nb_top_actors, sort_by_rating = False):
 			# Définition d'un "top" des acteurs ayant le plus de votes
 			df_actors_with_more_votes = df_group_actors_votes_ratings.sort_values(
 				by = ['numVotes'], ascending = False).head(nb_top_actors)
 
 			# Classement de ces acteurs ayant le plus de votes par le note moyenne pondérée
-			df_top_actors = df_actors_with_more_votes.sort_values(by = "weighted_rating", ascending = False).reset_index(drop = True)
+			if sort_by_rating:
+				df_top_actors = df_actors_with_more_votes.sort_values(by = "weighted_rating", ascending = False).reset_index(drop = True)
+			else:
+				df_top_actors = df_actors_with_more_votes.reset_index(drop = True)
 
 			return df_top_actors
 
-		df_top_15_actors = top_actors(15)
+		#df_top_15_actors = top_actors(15)
 
 
-		# Tracés
+		### Tracés ###
 
 		# Bar chart des acteurs ayant le plus de votes, classés par note moyenne
-		fig_5 = px.bar(df_top_15_actors, x = 'primaryName', y = 'weighted_rating',
-			title = 'Les 15 acteurs les mieux notés avec le plus de votes',
-			color_discrete_sequence = ['lightblue'], hover_data = ['numVotes'])
+		nb_actors = 20
+		fig_5 = px.bar(top_actors(nb_actors), x = 'primaryName', y = 'weighted_rating', height = 600, width = 1000,
+			title = f'{nb_actors} acteurs ayant le plus de votes classés par note moyenne',
+			labels = {"primaryName": "Nom", "weighted_rating": "Note moyenne pondérée", "numVotes": "Nombre de votes"},
+			color_discrete_sequence = ['lightblue'], hover_data = ['numVotes', 'nb_movies'])
 
 		fig_5.update_layout(title = {'y': 0.9, 'x': 0.5, 'xanchor': 'center', 'yanchor': 'top',
 			'font' : dict(size = 24)}, plot_bgcolor = 'white')
@@ -564,43 +631,94 @@ if st.sidebar.radio('Choix de la page', ('Analyses de films', 'Recommandation de
 		# Affichage dans Streamlit
 		st.plotly_chart(fig_5, use_container_width = False)
 
-		# Evolution des notes moyennes des acteurs ayant le plus de votes
+		
+		st.markdown("### Top 200 des acteurs dans les films ayant le plus de votes")
 
-		# Groupement des données par acteur et par an, en sommant les autres colonnes
-		df_group_actors_years_votes_ratings = df_actors_votes_ratings.groupby(by = ["primaryName", "startYear"]).agg(
-			{"numVotes" : "sum", "weighted_rating" : "sum", "nb_movies" : "sum"})
+		# Définition d'un top 200 des acteurs ayant participé aux films qui ont le plus de votes
+		df_top_200_actors = top_actors(200)
 
-		# Calcul de la moyenne des notes pondérée en divisant weighted_rating par le nombre de votes
-		df_group_actors_years_votes_ratings["weighted_rating"] = \
-			df_group_actors_years_votes_ratings["weighted_rating"] / df_group_actors_years_votes_ratings["numVotes"]
-
-		# Reset des index pour remettre le nom de l'acteur/actrice en colonne
-		df_group_actors_years_votes_ratings.reset_index(inplace = True)
-
-		# Création nouveau DataFrame en ne conservant que les "top" acteurs
-		df_top_15_actors_evolution = df_group_actors_years_votes_ratings[
-			df_group_actors_years_votes_ratings["primaryName"].isin(df_top_15_actors["primaryName"])]
-
-		# Tracé
-		fig_6 = px.line(data_frame = df_top_15_actors_evolution, x = "startYear", y = "weighted_rating",
-			color = "primaryName", color_discrete_sequence = px.colors.qualitative.Light24, markers = True,
-			labels = {"weighted_rating" : "Note moyenne pondérée", "startYear": "Année",
-				"nb_movies": "Nombre de films", "primaryName": "Nom"},
-			title = "Evolution de la note moyenne pondérée des meilleurs acteurs",
-			width = 1000, height = 600, hover_data = ["numVotes"])
-
-		fig_6.update_layout(title = {'y': 0.9, 'x': 0.5, 'xanchor': 'center', 'yanchor': 'top',
-			'font' : dict(size = 24)}, plot_bgcolor = 'white')
-		fig_6.update_xaxes(ticks = 'outside', showline = True, linecolor = 'black', linewidth = 2,
-			gridcolor = 'lightgrey', griddash = 'dash', range = [1979, 2023])
-		fig_6.update_yaxes(ticks = 'outside', showline = True, linecolor = 'black', linewidth = 2,
-			gridcolor = 'lightgrey', griddash = 'dash')
-
-		# Affichage dans Streamlit
-		st.plotly_chart(fig_6, use_container_width = False)
+		# Affichage des acteurs du top 200
+		st.dataframe(df_top_200_actors)
 
 	with tab_directors:
 		st.subheader("Directors")
+
+		# Fusion du DataFrame des notes des films des acteurs avec le DataFrame des films
+
+		# Création d'un nouveau DataFrame par fusion des DataFrame des notes des films des réalisateurs
+		# avec le DataFrame des films
+		# SI les données n'ont pas été directement chargées depuis github
+		if not data_loading_type_from_github:
+			df_movies_Fr_from_1980_director_rating = pd.merge(left = df_movie_fr_recent_years_trim,
+				right = df_directors_movies_ratings, how = "inner", left_on = "tconst", right_on = "tconst")
+
+			# Ajout d'une colonne "weighted_rating" pour le calcul de la moyenne pondérée des notes des films
+			df_movies_Fr_from_1980_director_rating['weighted_rating'] = \
+				df_movies_Fr_from_1980_director_rating['averageRating'] * df_movies_Fr_from_1980_director_rating['numVotes']
+
+			# Ajout d'une colonne "nb_movies" pour le calcul du nombre de films par acteur
+			df_movies_Fr_from_1980_director_rating['nb_movies'] = 1
+
+		# Moyenne pondérée des notes des films des réalisateurs
+		# Création d'un nouveau DataFrame df_directors_votes_ratings en conservant les colonnes qui nous intéressent
+		df_directors_votes_ratings = df_movies_Fr_from_1980_director_rating[
+			["nconst", "primaryName", "numVotes", "weighted_rating", "nb_movies", "startYear"]]
+
+		# Groupement des données par réalisateur, en sommant les autres colonnes
+		df_group_directors_votes_ratings = df_directors_votes_ratings.groupby(by = ["primaryName"]).agg(
+			{"numVotes" : "sum", "weighted_rating" : "sum", "nb_movies" : "sum"})
+
+		# Calcul de la moyenne des notes pondérée en divisant weighted_rating par le nombre de votes
+		df_group_directors_votes_ratings["weighted_rating"] = \
+			df_group_directors_votes_ratings["weighted_rating"] / df_group_directors_votes_ratings["numVotes"]
+
+		# Reset des index pour remettre le nom de l'acteur/actrice en colonne
+		df_group_directors_votes_ratings.reset_index(inplace = True)
+
+		# Top des x rélisateurs ayant le plus de vote classés par note moyenne
+
+		def top_directors(nb_top_directors, sort_by_rating = False):
+			# Définition d'un "top" des réalisateurs ayant le plus de votes
+			df_directors_with_more_votes = df_group_directors_votes_ratings.sort_values(
+				by = ['numVotes'], ascending = False).head(nb_top_directors)
+
+			# Classement de ces réalisateurs ayant le plus de votes par le note moyenne pondérée
+			if sort_by_rating:
+				df_top_directors = df_directors_with_more_votes.sort_values(
+					by = "weighted_rating", ascending = False).reset_index(drop = True)
+			else:
+				df_top_directors = df_directors_with_more_votes.reset_index(drop = True)
+
+			return df_top_directors
+
+		#df_top_15_directors = top_directors(15)
+
+		### Tracés ###
+
+		# Bar chart des réalisateurs ayant le plus de votes, classés par note moyenne
+		nb_directors = 20
+		fig_7 = px.bar(top_directors(nb_directors), x = 'primaryName', y = 'weighted_rating', height = 600, width = 1000,
+			title = f'{nb_directors} réalisateurs ayant le plus de votes classés par note moyenne',
+			labels = {"primaryName": "Nom", "weighted_rating": "Note moyenne pondérée", "numVotes": "Nombre de votes"},
+			color_discrete_sequence = ['lightblue'], hover_data = ['numVotes', 'nb_movies'])
+
+		fig_7.update_layout(title = {'y': 0.9, 'x': 0.5, 'xanchor': 'center', 'yanchor': 'top',
+			'font' : dict(size = 24)}, plot_bgcolor = 'white')
+		fig_7.update_xaxes(ticks = 'outside', showline = True, linecolor = 'black', linewidth = 2)
+		fig_7.update_yaxes(ticks = 'outside', showline = True, linecolor = 'black', linewidth = 2,
+			gridcolor = 'lightgrey', griddash = 'dash')
+
+		# Affichage dans Streamlit
+		st.plotly_chart(fig_7, use_container_width = False)
+
+		
+		st.markdown("### Top 50 des réalisateurs les films ayant le plus de votes")
+
+		# Définition d'un top 50 des réalisateurs ayant réalisé les films qui ont le plus de votes
+		df_top_50_directors = top_directors(50)
+
+		# Affichage des réalisateur du top 50
+		st.dataframe(df_top_50_directors)
 
 else:
 	st.header("Movie recommendation")
