@@ -4,12 +4,15 @@ import pandas as pd
 import streamlit as st
 import plotly.express as px
 import time
+from PIL import Image
+from sklearn.neighbors import NearestNeighbors
+from sklearn.preprocessing import StandardScaler
 
 # Changement de la largeur de la page pour l'élargir
 st.set_page_config(layout="wide")
 
 # Titre de la page
-st.title('Movie analyse and recommendation')
+st.markdown("<h1 style='text-align: center;'>Analyses et recommandations de films</h1>", unsafe_allow_html=True)
 
 # Affichage (temporaire) du "session_state"
 #"st.session.state (*juste pour voir, à supprimer ensuite*) :", st.session_state
@@ -354,6 +357,36 @@ def load_movies_fr_from_1980_directors_from_github():
 			"https://raw.githubusercontent.com/Miche5967/Projet_WCS_02_Systeme_recommandation_films/main/movies_fr_from_1980_directors_ratings.csv")
 	return df_movies_Fr_from_1980_director_rating
 
+# Top des x acteurs ayant le plus de votes, classés par note moyenne
+@st.cache_data
+def top_actors(nb_top_actors, sort_by_rating = False):
+	# Définition d'un "top" des acteurs ayant le plus de votes
+	df_actors_with_more_votes = df_group_actors_votes_ratings.sort_values(
+		by = ['numVotes'], ascending = False).head(nb_top_actors)
+
+	# Classement de ces acteurs ayant le plus de votes par le note moyenne pondérée
+	if sort_by_rating:
+		df_top_actors = df_actors_with_more_votes.sort_values(by = "weighted_rating", ascending = False).reset_index(drop = True)
+	else:
+		df_top_actors = df_actors_with_more_votes.reset_index(drop = True)
+
+	return df_top_actors
+
+# Top des x rélisateurs ayant le plus de vote classés par note moyenne
+@st.cache_data
+def top_directors(nb_top_directors, sort_by_rating = False):
+	# Définition d'un "top" des réalisateurs ayant le plus de votes
+	df_directors_with_more_votes = df_group_directors_votes_ratings.sort_values(
+		by = ['numVotes'], ascending = False).head(nb_top_directors)
+
+	# Classement de ces réalisateurs ayant le plus de votes par le note moyenne pondérée
+	if sort_by_rating:
+		df_top_directors = df_directors_with_more_votes.sort_values(
+			by = "weighted_rating", ascending = False).reset_index(drop = True)
+	else:
+		df_top_directors = df_directors_with_more_votes.reset_index(drop = True)
+
+	return df_top_directors
 
 def keep_on_movie_analyse_page():
 	st.session_state.radio = 'Analyses de films'
@@ -372,12 +405,12 @@ with st.spinner('Merci de patienter pendant le chargement des données. Cela peu
 		df_actors_movies_ratings, df_directors_movies_ratings = load_and_process_title_principals_and_name_basics()
 
 if st.sidebar.radio('Choix de la page', ('Analyses de films', 'Recommandation de films'), key = "radio") == 'Analyses de films':
-	st.header("Movie analyses")
+	st.header("Analyses de films")
 
 	tab_genres, tab_actors, tab_directors = st.tabs(["Genres", "Actors/Actresses", "Directors"])
 
 	with tab_genres:
-		st.subheader("Genres analyses")
+		st.subheader("Analyse des genres")
 
 		df_genres["Selected"] = False
 
@@ -491,7 +524,7 @@ if st.sidebar.radio('Choix de la page', ('Analyses de films', 'Recommandation de
 			title = "Note moyenne pondérée des films par an et par genre")
 
 		fig_2.update_layout(title = {'y': 0.9, 'x': 0.5, 'xanchor': 'center', 'yanchor': 'top',
-			'font' : dict(size = 24)}, plot_bgcolor = 'white')
+			'font' : dict(size = 24)}, plot_bgcolor = 'white', yaxis=dict(range=[4, max(df_group_years_genres_to_plot['weighted_rating'])]))
 		fig_2.update_xaxes(ticks = 'outside', showline = True, linecolor = 'black', linewidth = 2,
 			gridcolor = 'lightgrey', griddash = 'dash', range=[1979, 2023])
 		fig_2.update_yaxes(ticks = 'outside', showline = True, linecolor = 'black', linewidth = 2,
@@ -560,7 +593,7 @@ if st.sidebar.radio('Choix de la page', ('Analyses de films', 'Recommandation de
 	
 
 	with tab_actors:
-		st.subheader("Actresses & actors")
+		st.subheader("Acteurs et Actrices")
 
 		# Fusion du DataFrame des notes des films des acteurs avec le DataFrame des films
 
@@ -595,21 +628,6 @@ if st.sidebar.radio('Choix de la page', ('Analyses de films', 'Recommandation de
 		# Reset des index pour remettre le nom de l'acteur/actrice en colonne
 		df_group_actors_votes_ratings.reset_index(inplace = True)
 
-		# Top des x acteurs ayant le plus de votes, classés par note moyenne
-
-		def top_actors(nb_top_actors, sort_by_rating = False):
-			# Définition d'un "top" des acteurs ayant le plus de votes
-			df_actors_with_more_votes = df_group_actors_votes_ratings.sort_values(
-				by = ['numVotes'], ascending = False).head(nb_top_actors)
-
-			# Classement de ces acteurs ayant le plus de votes par le note moyenne pondérée
-			if sort_by_rating:
-				df_top_actors = df_actors_with_more_votes.sort_values(by = "weighted_rating", ascending = False).reset_index(drop = True)
-			else:
-				df_top_actors = df_actors_with_more_votes.reset_index(drop = True)
-
-			return df_top_actors
-
 		#df_top_15_actors = top_actors(15)
 
 
@@ -641,7 +659,7 @@ if st.sidebar.radio('Choix de la page', ('Analyses de films', 'Recommandation de
 		st.dataframe(df_top_200_actors)
 
 	with tab_directors:
-		st.subheader("Directors")
+		st.subheader("Réalisateurs")
 
 		# Fusion du DataFrame des notes des films des acteurs avec le DataFrame des films
 
@@ -675,22 +693,6 @@ if st.sidebar.radio('Choix de la page', ('Analyses de films', 'Recommandation de
 		# Reset des index pour remettre le nom de l'acteur/actrice en colonne
 		df_group_directors_votes_ratings.reset_index(inplace = True)
 
-		# Top des x rélisateurs ayant le plus de vote classés par note moyenne
-
-		def top_directors(nb_top_directors, sort_by_rating = False):
-			# Définition d'un "top" des réalisateurs ayant le plus de votes
-			df_directors_with_more_votes = df_group_directors_votes_ratings.sort_values(
-				by = ['numVotes'], ascending = False).head(nb_top_directors)
-
-			# Classement de ces réalisateurs ayant le plus de votes par le note moyenne pondérée
-			if sort_by_rating:
-				df_top_directors = df_directors_with_more_votes.sort_values(
-					by = "weighted_rating", ascending = False).reset_index(drop = True)
-			else:
-				df_top_directors = df_directors_with_more_votes.reset_index(drop = True)
-
-			return df_top_directors
-
 		#df_top_15_directors = top_directors(15)
 
 		### Tracés ###
@@ -721,5 +723,228 @@ if st.sidebar.radio('Choix de la page', ('Analyses de films', 'Recommandation de
 		st.dataframe(df_top_50_directors)
 
 else:
-	st.header("Movie recommendation")
-	st.write("A venir...")
+    st.header("Recommandations de films") 
+
+    # Ajout du magnifique GIF des minions 
+    #gif = "https://media.giphy.com/media/11sBLVxNs7v6WA/giphy.gif"
+    #st.image(gif, use_column_width=True, width = 300)
+
+    
+    ### Ajout d'une nouvelle colonne "recommandé" ###
+
+    # Création d'un DataFrame temporaire avec uniquement l'id du film et le(s) noms du(des) réalisateur(s)
+    # Et changement de nom de la colonne "primaryName"
+    @st.cache_data
+    def get_movies_directors():
+    	df_movies_directors = df_movies_Fr_from_1980_director_rating[["tconst", "primaryName"]].rename(
+            columns = {"primaryName" : "dir_primaryName"})
+    	return df_movies_directors
+
+    # Création d'un DataFrame temporaire avec uniquement l'id du film et le(s) noms du(des) acteur/actrice(s)
+    # Et changement de nom de la colonne "primaryName"
+    #@st.cache_data
+    def get_movies_actors():
+        df_movies_actors = df_movie_in_FR_from_1980_actor_rating[["tconst", "primaryName"]].rename(
+            columns = {"primaryName" : "act_primaryName"})
+        return df_movies_actors
+
+    # DataFrame avec uniquement l'id du film et le(s) noms du(des) réalisateur(s)
+    df_movies_directors = get_movies_directors()
+    # DataFrame avec uniquement l'id du film et le(s) noms du(des) acteur/actrice(s)
+    df_movies_actors = get_movies_actors()
+
+    # Nouveau DataFrame créé en fusionnant df_movie_in_FR_from_1980_actor_rating avec df_movies_directors 
+    df_movie_fr_from_1980_ratings = pd.merge(
+        left = df_movie_in_FR_from_1980_actor_rating, right = df_movies_directors,
+        how = "inner", left_on = "tconst", right_on = "tconst").rename(columns = {"primaryName": "act_primaryName"})
+
+    # Ajout d'une nouvelle colonne "recommandé" avec valeur 0 par défaut
+    df_movie_fr_from_1980_ratings["recommended"] = 0
+
+    ## Critères pour passer "recommandé" à 1 :
+    # 60 min < durée < 180 min ET
+        # 1. nbre votes >= 100 K ET note moyenne >= 7 OU
+        # 2. nbre votes >= 10 K ET note moyenne >= 5 ET acteur dans le top 200 des acteurs les plus populaires
+        # 3. nbre votes >= 10 K ET note moyenne >= 5 ET réalisateur dans le top 50 des réalisateurs les plus populaires
+
+    df_top_200_actors = top_actors(200)
+    df_top_50_directors = top_directors(50)
+
+    # 1ère condition pour passer "recommandé" à 1
+    df_movie_fr_from_1980_ratings.loc[
+        (df_movie_fr_from_1980_ratings['runtimeMinutes'] >= 60) & (df_movie_fr_from_1980_ratings['runtimeMinutes'] <= 180) &
+        (df_movie_fr_from_1980_ratings['numVotes'] >= 100000) & (df_movie_fr_from_1980_ratings['averageRating'] >= 7),
+        'recommended'] = 1
+
+    # 2e condition pour passer "recommandé" à 1
+    df_movie_fr_from_1980_ratings.loc[
+        (df_movie_fr_from_1980_ratings['runtimeMinutes'] >= 60) & (df_movie_fr_from_1980_ratings['runtimeMinutes'] <= 180) &
+        (df_movie_fr_from_1980_ratings['numVotes'] >= 10000) & (df_movie_fr_from_1980_ratings['averageRating'] >= 5) &
+        (df_movie_fr_from_1980_ratings['act_primaryName'].isin(df_top_200_actors['primaryName'])),
+        'recommended'] = 1
+
+    # 3e condition pour passer "recommandé" à 1
+    df_movie_fr_from_1980_ratings.loc[
+        (df_movie_fr_from_1980_ratings['runtimeMinutes'] >= 60) & (df_movie_fr_from_1980_ratings['runtimeMinutes'] <= 180) &
+        (df_movie_fr_from_1980_ratings['numVotes'] >= 10000) & (df_movie_fr_from_1980_ratings['averageRating'] >= 5) &
+        (df_movie_fr_from_1980_ratings['dir_primaryName'].isin(df_top_50_directors['primaryName'])),
+        'recommended'] = 1
+
+    # On ne conserve que les colonnes qui nous intéressent, on supprime notamment les infos des acteurs/actrices
+    df_movie_fr_from_1980_ratings = df_movie_fr_from_1980_ratings[
+        ["tconst", "startYear", "runtimeMinutes", "genres", "title", "averageRating", "numVotes", "recommended"]]
+
+    # Création d'un DataFrame en groupant les films et leurs caractéristiques,
+    # et en sommant la colonne "recommended"
+    df_movie_fr_from_1980_ratings_recommendation = df_movie_fr_from_1980_ratings.groupby(
+        by = ["tconst", "startYear", "runtimeMinutes", "genres", "title",  "averageRating", "numVotes"],
+        as_index = False)["recommended"].sum()
+
+    # Changement de type de la colonne "recommended" en integer
+    df_movie_fr_from_1980_ratings_recommendation["recommended"] = \
+        df_movie_fr_from_1980_ratings_recommendation["recommended"].astype(int)
+
+    # Changement de type de la colonne "startYear" en integer
+    df_movie_fr_from_1980_ratings_recommendation["startYear"] = \
+        df_movie_fr_from_1980_ratings_recommendation["startYear"].astype(int)
+
+    # Changement de type de la colonne "runtimeMinutes" en integer
+    df_movie_fr_from_1980_ratings_recommendation["runtimeMinutes"] = \
+        df_movie_fr_from_1980_ratings_recommendation["runtimeMinutes"].astype(int)
+
+    # Changement de type de la colonne "title" en string
+    df_movie_fr_from_1980_ratings_recommendation["title"] = \
+        df_movie_fr_from_1980_ratings_recommendation["title"].astype("string")
+
+    # Fonction pour supprimer les "[" "]" à une chaîne de caractères
+    def remove_brackets(string):
+        if len(string) > 0:
+            if string[0] == "[":
+                string = string[1:]
+            if string[-1] == "]":
+                string = string[:-1]
+            return string
+        else:
+            return ""
+    
+    # Suppression des crochets ("brackets" "[" et "]") de la chaîne de caractères des genres
+    df_movie_fr_from_1980_ratings_recommendation["genres"] = \
+        df_movie_fr_from_1980_ratings_recommendation["genres"].apply(remove_brackets)
+
+    # Reset des index
+    df_movie_fr_from_1980_ratings_recommendation.reset_index(drop = True, inplace = True)
+
+
+
+    ### Machine Learning ###
+
+    # Recommandation de films
+
+    # Saisie d'un film par l'utilisateur
+    titre_film = st.text_input("Veuillez renseigner un titre")
+    #titre_film = titre_film
+
+    #df_algo["lower_title"] = df_algo["title"].str.lower()
+
+    # Choix d'un film
+    #titre_film = "Casino"
+
+    #
+    if len(titre_film) > 0:
+    	# Création du DataFrame du film choisi df_chosen_movie
+    	df_chosen_movie = df_movie_fr_from_1980_ratings_recommendation[
+    		df_movie_fr_from_1980_ratings_recommendation["title"] == titre_film]
+    	#print(df_movie_fr_from_1980_ratings_recommendation)
+    	#print(df_chosen_movie)
+
+    	# Définition des genres du film choisi
+    	genres_film = df_movie_fr_from_1980_ratings_recommendation.loc[
+    		df_movie_fr_from_1980_ratings_recommendation["title"] == titre_film, "genres"].values[0]
+
+    	# Définition de la liste des genres du film choisi
+    	list_genres_film = []
+    	for genre in df_genres.Genre:
+    		if genre in genres_film:
+    			list_genres_film.append(genre)
+
+    	# Fonction vérifiant si un genre de la liste est compris dans une chaîne
+    	def check_genre_match(string):
+    		nb_matches = 0
+    		for genre in list_genres_film:
+    			if genre in string:
+    				nb_matches += 1
+    		return nb_matches
+
+    	# Copie du DataFrame de base dans un df temporaire df_movie_tmp
+    	df_movie_tmp = df_movie_fr_from_1980_ratings_recommendation.copy()
+
+    	# Suppression du film choisi par l'utilisateur du DataFrame d'entraînement
+    	df_movie_tmp = df_movie_tmp[df_movie_tmp["title"] != titre_film]
+
+    	# Application de la fonction pour vérifier si les genres du film choisi "matchent"
+    	# avec les genres des films du DataFrame
+    	df_movie_tmp["nb_genre_matches"] = df_movie_tmp["genres"].apply(check_genre_match)
+
+    	# On ne garde que les films pour lesquels le genre "matche" avec le film choisi
+    	nb_mini_genre_matches = 50
+    	if len(df_movie_tmp[df_movie_tmp["nb_genre_matches"] == len(list_genres_film)]) >= nb_mini_genre_matches:
+    		df_movie_tmp = df_movie_tmp[df_movie_tmp["nb_genre_matches"] == len(list_genres_film)]
+    	elif len(list_genres_film) > 1:
+    		df_movie_tmp = df_movie_tmp[df_movie_tmp["nb_genre_matches"] >= len(list_genres_film) - 1]  
+    	else:
+    		df_movie_tmp = df_movie_tmp[df_movie_tmp["nb_genre_matches"] == len(list_genres_film)]
+
+    	# Définition des variable explicatives X, ici nos variables quantitatives (numériques)
+    	X = df_movie_tmp[["startYear", "runtimeMinutes", "averageRating", "numVotes", "recommended"]]
+
+    	# Création et entraînement du modèle "scaler" pour standardiser nos variables
+    	#scaler = StandardScaler().fit(X)
+
+    	# Transformation des données par le modèle scaler
+    	#X_scaled = scaler.transform(X)
+
+    	# Création et entraînement du modèle "NearestNeighbors" (plus proches voisins)
+    	# Choix du nombre de voisins
+    	k = 50
+    	modelNN = NearestNeighbors(n_neighbors = k).fit(X)
+    	#modelNN = NearestNeighbors(n_neighbors = k).fit(X_scaled)
+
+    	# kneighbors renvoie les distances et indices des k plus proches voisins renoyés par le modèle :
+    	neighbors = modelNN.kneighbors(
+    		df_movie_fr_from_1980_ratings_recommendation.loc[
+    			df_movie_fr_from_1980_ratings_recommendation['title'] == titre_film, X.columns])
+
+    	# Index des plus proches voisins
+    	arr_closest_movies_index = neighbors[1][0]
+
+    	# DataFrame des films recommandés
+    	df_recommended_movies = df_movie_tmp.iloc[arr_closest_movies_index]
+    	df_recommended_movies = df_recommended_movies[
+    		["startYear", "runtimeMinutes", "genres", "title", "averageRating", "numVotes", "recommended"]]
+    	if len(df_recommended_movies[df_recommended_movies.recommended > 0]) > 10:
+    		df_recommended_movies = df_recommended_movies[df_recommended_movies.recommended > 0]
+    	df_recommended_movies.rename(
+    		columns = {"startYear" : "Année", "runtimeMinutes" : "Durée", "genres" : "Genres", "title": "Titre",
+    		"averageRating" : "Note moy.", "numVotes" : "Nbre de votes", "recommended" : "Recommandé"},
+    		inplace = True)
+    	if len(df_recommended_movies) > 10:
+    		df_recommended_movies = df_recommended_movies.head(10)
+
+    	st.dataframe(df_recommended_movies)
+
+
+
+#st.sidebar.markdown('<div style="height: 350px;"></div>', unsafe_allow_html=True)
+#image = Image.open("https://github.com/Miche5967/movie_analyse_recommendation_streamlit_app/blob/master/analystes_redim.png?raw=true")
+#container = st.sidebar.container()
+#st.sidebar.image(image, use_column_width=True)
+
+image_url2 = "https://github.com/Miche5967/movie_analyse_recommendation_streamlit_app/blob/master/analystes_redim.png?raw=true"
+st.sidebar.write(" ", unsafe_allow_html=True)
+st.sidebar.write(" ", unsafe_allow_html=True)
+st.sidebar.write(" ", unsafe_allow_html=True)
+st.sidebar.write(" ", unsafe_allow_html=True)
+st.sidebar.write(" ", unsafe_allow_html=True)
+st.sidebar.write(" ", unsafe_allow_html=True)
+st.sidebar.write(" ", unsafe_allow_html=True)
+st.sidebar.image(image_url2, use_column_width=True)
